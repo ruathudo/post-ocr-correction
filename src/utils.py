@@ -42,8 +42,8 @@ def print_result(src, trg, out, dictionary, n=5):
         print("-" * 30)
 
 
-def save_model(model, optimizer, args, filepath):
-
+def save_model(model, optimizer, args, model_name):
+    filepath = os.path.join('models', model_name)
     torch.save({
         'args': args,
         'model_state_dict': model.state_dict(),
@@ -51,17 +51,14 @@ def save_model(model, optimizer, args, filepath):
     }, filepath)
 
 
-def load_model(filepath, model, device):
+def load_model(model_name, model, device):
+    filepath = os.path.join('models', model_name)
     checkpoint = torch.load(filepath)
 
-    # encoder = Encoder(*checkpoint['args']).to(device)
-    # decoder = Decoder(*checkpoint['args']).to(device)
-
-    # model = Seq2Seq(encoder, decoder, device).to(device)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.eval()
 
-    optimizer = Adam()
+    optimizer = Adam(model.parameters())
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 
     return model, optimizer
@@ -154,4 +151,3 @@ def upload_s3(model_file, log_file):
 
     s3.upload_file(log_path, bucket, log_path)
     s3.upload_file(model_path, bucket, model_path)
-

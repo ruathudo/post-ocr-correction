@@ -14,4 +14,4 @@
 module load python-data/3.7.6-1 
 module load pytorch/1.4
 
-srun python -m src.main --data yle-train-100.txt --batch 128 --epoch 2
+srun python -m src.main --data yle-train.txt --model tf_mix_noctx_full --batch 128 --epoch 2 --update

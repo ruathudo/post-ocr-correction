@@ -434,8 +434,8 @@ def init_model(dictionary, device, pretrained_file=None):
     model = Seq2Seq(enc, dec, PAD_IDX, PAD_IDX, device).to(device)
 
     if pretrained_file:
-        model_path = os.path.join('models', pretrained_file)
-        model, optimizer = load_model(model_path, model, device)
+        # model_path = os.path.join('models', pretrained_file)
+        model, optimizer = load_model(pretrained_file, model, device)
     else:
         model.apply(initialize_weights)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)

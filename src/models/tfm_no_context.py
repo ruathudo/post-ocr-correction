@@ -5,9 +5,13 @@ from numpy import random
 import torch
 from torch.nn.utils.rnn import pad_sequence
 from torch.utils.data import DataLoader, Dataset
-import tqdm
+from torch.cuda.amp import autocast, GradScaler
+
+from tqdm import tqdm
 
 from ..utils import create_noise, random_noise, get_correction
+
+scaler = GradScaler()
 
 
 class SeqDataset(Dataset):
@@ -64,8 +68,7 @@ class Collator(object):
         lens = torch.tensor([len(t) for t in non_errs])
 
         non_errs = pad_sequence(non_errs)
-        noise_tokens = create_noise(
-            non_errs, lens, self.noise_model, self.device)
+        noise_tokens = create_noise(non_errs, lens, self.noise_model, self.device)
 
         df_src.loc[df_src['is_rand'] == False, 'tokens'] = noise_tokens
 
@@ -86,43 +89,41 @@ def train(model, data_loader, optimizer, criterion, device):
     total_correct = 0
     total_sample = 0
 
-    progress = tqdm.tqdm(total=len(data_loader), desc='Train')
-
-    for batch in data_loader:
+    for i, batch in tqdm(enumerate(data_loader), total=len(data_loader), desc='Train'):
+        optimizer.zero_grad()
         src, trg = batch
         src = src.to(device, non_blocking=True)
         trg = trg.to(device, non_blocking=True)
+        with autocast():
+            output, _ = model(src, trg[:, :-1])
 
-        output, _ = model(src, trg[:, :-1])
+            y_pred = torch.argmax(output, 2)
+            # y_pred = y_pred.cpu().numpy()
+            y_true = trg[:, 1:]
 
-        y_pred = torch.argmax(output, 2)
-        # y_pred = y_pred.cpu().numpy()
-        y_true = trg[:, 1:]
+            total_sample += y_true.shape[0]
+            total_correct += get_correction(y_pred, y_true)
 
-        total_sample += y_true.shape[0]
-        total_correct += get_correction(y_pred, y_true)
+            # trg = [trg len, batch size]
+            # output = [trg len, batch size, output dim]
 
-        # trg = [trg len, batch size]
-        # output = [trg len, batch size, output dim]
+            output_dim = output.shape[-1]
 
-        output_dim = output.shape[-1]
+            output = output.contiguous().view(-1, output_dim)
+            trg = trg[:, 1:].contiguous().view(-1)
 
-        output = output.contiguous().view(-1, output_dim)
-        trg = trg[:, 1:].contiguous().view(-1)
+            # trg = [(trg len - 1) * batch size]
+            # output = [(trg len - 1) * batch size, output dim]
+            loss = criterion(output, trg)
+            epoch_loss += loss.item()
 
-        # trg = [(trg len - 1) * batch size]
-        # output = [(trg len - 1) * batch size, output dim]
-
-        optimizer.zero_grad()
-        loss = criterion(output, trg)
-        loss.backward()
-
+        scaler.scale(loss).backward()
+        # loss.backward()
+        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
-
-        optimizer.step()
-
-        epoch_loss += loss.item()
-        progress.update(1)
+        scaler.step(optimizer)
+        # optimizer.step()
+        scaler.update()
 
     epoch_loss = epoch_loss / len(data_loader)
     acc = total_correct / total_sample
@@ -138,8 +139,6 @@ def evaluate(model, data_loader, criterion, device):
     total_correct = 0
     total_sample = 0
 
-    progress = tqdm.tqdm(total=len(data_loader), desc='Eval')
-
     with torch.no_grad():
 
         for batch in data_loader:
@@ -149,32 +148,31 @@ def evaluate(model, data_loader, criterion, device):
             src = src.to(device, non_blocking=True)
             trg = trg.to(device, non_blocking=True)
 
-            output, _ = model(src, trg[:, :-1])
+            with autocast():
+                output, _ = model(src, trg[:, :-1])
 
-            y_pred = torch.argmax(output, 2)
-            # y_pred = y_pred.cpu().numpy()
-            y_true = trg[:, 1:]
+                y_pred = torch.argmax(output, 2)
+                # y_pred = y_pred.cpu().numpy()
+                y_true = trg[:, 1:]
 
-            total_sample += y_true.shape[0]
-            total_correct += get_correction(y_pred, y_true)
+                total_sample += y_true.shape[0]
+                total_correct += get_correction(y_pred, y_true)
 
-            # output = model(src, src_len, trg, 0) #turn off teacher forcing
+                # output = model(src, src_len, trg, 0) #turn off teacher forcing
 
-            # trg = [trg len, batch size]
-            # output = [trg len, batch size, output dim]
+                # trg = [trg len, batch size]
+                # output = [trg len, batch size, output dim]
 
-            output_dim = output.shape[-1]
+                output_dim = output.shape[-1]
 
-            output = output.contiguous().view(-1, output_dim)
-            trg = trg[:, 1:].contiguous().view(-1)
+                output = output.contiguous().view(-1, output_dim)
+                trg = trg[:, 1:].contiguous().view(-1)
 
-            # trg = [(trg len - 1) * batch size]
-            # output = [(trg len - 1) * batch size, output dim]
+                # trg = [(trg len - 1) * batch size]
+                # output = [(trg len - 1) * batch size, output dim]
 
-            loss = criterion(output, trg)
-
-            epoch_loss += loss.item()
-            progress.update(1)
+                loss = criterion(output, trg)
+                epoch_loss += loss.item()
 
     epoch_loss = epoch_loss / len(data_loader)
     acc = total_correct / total_sample
