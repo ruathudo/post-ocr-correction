@@ -10,58 +10,72 @@ from multiprocessing import cpu_count
 import tqdm
 
 from .models import transfomer, error_gen
-from .models.tfm_no_context import SeqDataset, Collator, train, evaluate
+# from .models.tfm_no_context import SeqDataset, Collator, train, evaluate
+from .models import tfm_context as ctx
+from .models import tfm_no_context as nctx
 from .data_handler import build_dictionary, read_corpus
 from . import utils
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Add training options')
+    parser.add_argument('--ctx', action='store_const', const=True, default=False, help='Train with context')
     parser.add_argument('--data', required=True, help='Dataset Name')
     parser.add_argument('--model', required=True, help='Model Name')
-    parser.add_argument('--update', action='store_const', const=True, default=False, help='Continue training')
+    parser.add_argument('--resume', action='store_const', const=True, default=False, help='Resume training')
     parser.add_argument('--batch', default=128, type=int, help='Batch Size')
     parser.add_argument('--epoch', default=1, type=int, help='Epoch Number')
+    parser.add_argument('--rand', default=0.5, type=float, help='Random rate from 0-1')
 
     args = parser.parse_args()
+    module = ctx if args.ctx else nctx
 
     DATA = args.data
     MODEL_NAME = args.model
-    IS_UPDATE = args.update
+    RESUME = args.resume
     BATCH_SIZE = args.batch
     N_EPOCHS = args.epoch
+    RAND_RATE = args.rand
+    RAND_MODE = 'mix'
+
+    if RAND_RATE == 1.0:
+        RAND_MODE = 'rand'
+    elif RAND_RATE == 0.0:
+        RAND_MODE = 'trained'
+
+    print("Using rand_mode:", RAND_MODE)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device_cpu = torch.device('cpu')
-    print('build dictionary')
+    print('Build dictionary')
     dictionary = build_dictionary()
 
-    print('create data loader')
+    print('Create data loader')
     train_data, test_data = read_corpus(DATA, max_len=30, test_size=50000)
     noise_model = error_gen.load_noise_model('models/error_generator_model.pt', device_cpu)
-    train_set = SeqDataset(train_data, dictionary)
-    test_set = SeqDataset(test_data, dictionary)
+    train_set = module.SeqDataset(train_data, dictionary, rand_rate=0.5)
+    test_set = module.SeqDataset(test_data, dictionary, rand_rate=0.5)
 
-    collate_fn = Collator(noise_model, device_cpu)
-    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True, collate_fn=collate_fn, num_workers=4, drop_last=True)
-    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False, pin_memory=True, collate_fn=collate_fn, num_workers=4, drop_last=True)
+    collate_fn = module.Collator(noise_model, device_cpu, rand_mode=RAND_MODE)
+    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False, collate_fn=collate_fn, num_workers=4, drop_last=True)
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False, pin_memory=False, collate_fn=collate_fn, num_workers=4, drop_last=True)
 
-    print('init model')
+    print('Init model')
     criterion = nn.CrossEntropyLoss()
     # if update model, load the pretrained file
-    pretrained_file = MODEL_NAME + '.pt' if IS_UPDATE else None
-    model, optimizer = transfomer.init_model(dictionary, device, pretrained_file=pretrained_file)
+    pretrained_file = MODEL_NAME if RESUME else None
+    model, optimizer, scaler, epoch = transfomer.init_model(dictionary, device, pretrained_file=pretrained_file)
 
-    print('train and evaluate')
-    for epoch in range(N_EPOCHS):
+    print('Train and evaluate')
+    for e in range(1, N_EPOCHS + 1):
         t0 = time.time()
 
-        train_loss, train_acc = train(model, train_loader, optimizer, criterion, device)
-        valid_loss, valid_acc = evaluate(model, test_loader, criterion, device)
+        train_loss, train_acc = module.train(model, train_loader, optimizer, criterion, device, scaler)
+        valid_loss, valid_acc = module.evaluate(model, test_loader, criterion, device)
 
         duration = (time.time() - t0) / 60
 
-        log = f'Epoch: {epoch+1} | Time: {duration:.2f} m | Train Loss: {train_loss:.3f} | Val. Loss: {valid_loss:.3f} | Train Acc: {train_acc:.4f} | Val. Acc: {valid_acc:.4f}'
+        log = f'Epoch: {epoch + e} | Time: {duration:.2f} m | Train Loss: {train_loss:.3f} | Val. Loss: {valid_loss:.3f} | Train Acc: {train_acc:.4f} | Val. Acc: {valid_acc:.4f}'
 
         print('\n')
         print(log)
@@ -69,6 +83,6 @@ if __name__ == '__main__':
         # write to log
         utils.write_log(log, MODEL_NAME + '.txt')
         # save checkpoint
-        utils.save_model(model, optimizer, {}, MODEL_NAME + '.pt')
+        utils.save_model(model, optimizer, scaler, MODEL_NAME, epoch + e)
         # utils.upload_s3('tf_mix_noctx_full.pt', 'tf_mix_noctx_full.txt')
         # print('Uploaded model and log \n')

@@ -3,6 +3,7 @@ import numpy as np
 from numpy import random
 import torch
 from torch.optim import Adam
+from torch.cuda.amp import GradScaler
 import boto3
 
 
@@ -42,26 +43,36 @@ def print_result(src, trg, out, dictionary, n=5):
         print("-" * 30)
 
 
-def save_model(model, optimizer, args, model_name):
+def save_model(model, optimizer, scaler, model_name, epoch):
+
     filepath = os.path.join('models', model_name)
+
+    if os.path.isfile(filepath + '.pt'):
+        os.rename(filepath + '.pt', filepath + '_' + str(epoch - 1) + '.pt')
+
     torch.save({
-        'args': args,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-    }, filepath)
+        'epoch': epoch,
+        'scaler': scaler.state_dict(),
+        'model': model.state_dict(),
+        'optimizer': optimizer.state_dict(),
+    }, filepath + '.pt')
 
 
 def load_model(model_name, model, device):
-    filepath = os.path.join('models', model_name)
+    filepath = os.path.join('models', model_name + '.pt')
     checkpoint = torch.load(filepath)
 
-    model.load_state_dict(checkpoint['model_state_dict'])
+    model.load_state_dict(checkpoint['model'])
     model.eval()
 
     optimizer = Adam(model.parameters())
-    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
 
-    return model, optimizer
+    scaler = GradScaler()
+    scaler.load_state_dict(checkpoint['scaler'])
+
+    epoch = checkpoint['epoch'] or 0
+    return model, optimizer, scaler, epoch
 
 
 def write_log(line, filename):

@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
+from torch.cuda.amp import GradScaler
 from torch.nn.utils.rnn import pad_sequence
 from ..utils import load_model, get_correction
 
@@ -435,9 +436,12 @@ def init_model(dictionary, device, pretrained_file=None):
 
     if pretrained_file:
         # model_path = os.path.join('models', pretrained_file)
-        model, optimizer = load_model(pretrained_file, model, device)
+        model, optimizer, scaler, epoch = load_model(pretrained_file, model, device)
     else:
+        # lr=0.0005
         model.apply(initialize_weights)
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+        optimizer = torch.optim.Adam(model.parameters())
+        scaler = GradScaler(enabled=True)
+        epoch = 0
 
-    return model, optimizer
+    return model, optimizer, scaler, epoch
