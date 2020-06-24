@@ -53,8 +53,8 @@ if __name__ == '__main__':
     print('Create data loader')
     train_data, test_data = read_corpus(DATA, max_len=30, test_size=50000)
     noise_model = error_gen.load_noise_model('models/error_generator_model.pt', device_cpu)
-    train_set = module.SeqDataset(train_data, dictionary, rand_rate=0.5)
-    test_set = module.SeqDataset(test_data, dictionary, rand_rate=0.5)
+    train_set = module.SeqDataset(train_data, dictionary, rand_rate=RAND_RATE)
+    test_set = module.SeqDataset(test_data, dictionary, rand_rate=RAND_RATE)
 
     collate_fn = module.Collator(noise_model, device_cpu, rand_mode=RAND_MODE)
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False, collate_fn=collate_fn, num_workers=4, drop_last=True)
