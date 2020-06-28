@@ -16,6 +16,7 @@ __pycache__
 .vscode
 /models/*
 !/models/.gitkeep
+!/models/error_generator_model.pt
 /*.ipynb
 /*.zip
 /yle-corpus

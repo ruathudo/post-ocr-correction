@@ -441,7 +441,7 @@ def init_model(dictionary, device, pretrained_file=None):
         # lr=0.0005
         model.apply(initialize_weights)
         optimizer = torch.optim.Adam(model.parameters())
-        scaler = GradScaler(enabled=True)
+        scaler = GradScaler(enabled=False)
         epoch = 0
 
     return model, optimizer, scaler, epoch

@@ -68,7 +68,7 @@ def load_model(model_name, model, device):
     optimizer = Adam(model.parameters())
     optimizer.load_state_dict(checkpoint['optimizer'])
 
-    scaler = GradScaler()
+    scaler = GradScaler(enabled=False)
     scaler.load_state_dict(checkpoint['scaler'])
 
     epoch = checkpoint['epoch'] or 0

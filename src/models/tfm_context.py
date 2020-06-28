@@ -102,13 +102,13 @@ class Collator(object):
             df_src.loc[df_src['is_rand'] == False, 'tokens'] = noise_tokens
 
             src_tokens = df_src['tokens'].tolist()
-            src_tokens = [torch.LongTensor(i) for i in src_tokens]
+            src_tokens = [torch.LongTensor(i[1:-1]) for i in src_tokens]
 
         elif self.rand_mode == "trained":
             lens = torch.tensor([t.shape[0] for t in src_ids])
             non_errs = pad_sequence(src_ids)
             noise_tokens = create_noise(non_errs, lens, self.noise_model, self.device)
-            src_tokens = [torch.LongTensor(i) for i in noise_tokens]
+            src_tokens = [torch.LongTensor(i[1:-1]) for i in noise_tokens]
         else:
             # remove sos and eos
             src_tokens = [i[1:-1] for i in src_ids]
@@ -134,7 +134,7 @@ def train(model, data_loader, optimizer, criterion, device, scaler):
         src, trg = batch
         src = src.to(device, non_blocking=True)
         trg = trg.to(device, non_blocking=True)
-        with autocast(enabled=True):
+        with autocast(enabled=False):
             output, _ = model(src, trg[:, :-1])
 
             y_pred = torch.argmax(output, 2)
@@ -188,7 +188,7 @@ def evaluate(model, data_loader, criterion, device):
             src = src.to(device, non_blocking=True)
             trg = trg.to(device, non_blocking=True)
 
-            with autocast():
+            with autocast(enabled=False):
                 output, _ = model(src, trg[:, :-1])
 
                 y_pred = torch.argmax(output, 2)
