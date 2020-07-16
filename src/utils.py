@@ -113,7 +113,7 @@ def random_noise(text, noise_rate=0.07):
     return text
 
 
-def create_noise(token_ids, lengths, model, device, noise_rate=0.1):
+def create_noise(token_ids, lengths, model, device, noise_rate=0.07):
     # add sos and eos token
     token_ids = token_ids.to(device)
     lengths = lengths.to(device)

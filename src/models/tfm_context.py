@@ -81,7 +81,6 @@ class Collator(object):
     def __init__(self, noise_model, device, rand_mode="mix"):
         """
         rand_mode: mix, rand, trained
-        TODO implement rand_mode none
         """
         self.noise_model = noise_model
         self.device = device
@@ -91,7 +90,7 @@ class Collator(object):
         l_ctx, r_ctx, trg_ids, src_ids, rands = zip(*batch)
         # get sequence lengths
         # lengths = torch.tensor([ t.shape[0] for t in src ])
-        if self.rand_mode == "mix":
+        if self.rand_mode == 'mix' or self.rand_mode == 'trained':
             df_src = pd.DataFrame(list(zip(src_ids, rands)), columns=['tokens', 'is_rand'])
             non_errs = df_src.loc[df_src['is_rand'] == False]['tokens'].tolist()
             lens = torch.tensor([len(t) for t in non_errs])
@@ -103,12 +102,6 @@ class Collator(object):
 
             src_tokens = df_src['tokens'].tolist()
             src_tokens = [torch.LongTensor(i[1:-1]) for i in src_tokens]
-
-        elif self.rand_mode == "trained":
-            lens = torch.tensor([t.shape[0] for t in src_ids])
-            non_errs = pad_sequence(src_ids)
-            noise_tokens = create_noise(non_errs, lens, self.noise_model, self.device)
-            src_tokens = [torch.LongTensor(i[1:-1]) for i in noise_tokens]
         else:
             # remove sos and eos
             src_tokens = [i[1:-1] for i in src_ids]

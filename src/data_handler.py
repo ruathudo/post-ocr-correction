@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 from torch.nn.utils.rnn import pad_sequence
 
 from gensim.corpora import Dictionary
-from gensim.parsing.preprocessing import strip_multiple_whitespaces
+from gensim.parsing.preprocessing import strip_multiple_whitespaces, strip_non_alphanum, strip_punctuation
 from sklearn.model_selection import train_test_split
 
 
@@ -41,9 +41,13 @@ def read_corpus(name, max_len=20, test_size=5000):
         # remove label and url from text
         text = f.read()
 
-    text = strip_multiple_whitespaces(text)
     text = re.sub(r'__label__\S*\s', '', text)
     text = re.sub(r'\S?http\S+', '', text)
+
+    text = strip_multiple_whitespaces(text)
+    text = strip_non_alphanum(text)
+    text = strip_punctuation(text)
+
     text = text.lower()
     text = text.split()
     # dcm = [w for w in text if len(w) < max_len + 4 and len(w) > max_len]

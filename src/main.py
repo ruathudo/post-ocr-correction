@@ -19,13 +19,16 @@ from . import utils
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Add training options')
-    parser.add_argument('--ctx', action='store_const', const=True, default=False, help='Train with context')
+    parser.add_argument('--ctx', action='store_const',
+                        const=True, default=False, help='Train with context')
     parser.add_argument('--data', required=True, help='Dataset Name')
     parser.add_argument('--model', required=True, help='Model Name')
-    parser.add_argument('--resume', action='store_const', const=True, default=False, help='Resume training')
+    parser.add_argument('--resume', action='store_const',
+                        const=True, default=False, help='Resume training')
     parser.add_argument('--batch', default=128, type=int, help='Batch Size')
     parser.add_argument('--epoch', default=1, type=int, help='Epoch Number')
-    parser.add_argument('--rand', default=0.5, type=float, help='Random rate from 0-1')
+    parser.add_argument('--rand', default=0.5, type=float,
+                        help='Random rate from 0-1')
 
     args = parser.parse_args()
     module = ctx if args.ctx else nctx
@@ -37,6 +40,7 @@ if __name__ == '__main__':
     N_EPOCHS = args.epoch
     RAND_RATE = args.rand
     RAND_MODE = 'mix'
+    WINDOW = 5
 
     if RAND_RATE == 1.0:
         RAND_MODE = 'rand'
@@ -52,26 +56,34 @@ if __name__ == '__main__':
 
     print('Create data loader')
     train_data, test_data = read_corpus(DATA, max_len=30, test_size=50000)
-    noise_model = error_gen.load_noise_model('models/error_generator_model.pt', device_cpu)
-    train_set = module.SeqDataset(train_data, dictionary, rand_rate=RAND_RATE)
-    test_set = module.SeqDataset(test_data, dictionary, rand_rate=RAND_RATE)
+    noise_model = error_gen.load_noise_model(
+        'models/error_generator_model.pt', device_cpu)
+    train_set = module.SeqDataset(
+        train_data, dictionary, rand_rate=RAND_RATE, window=WINDOW)
+    test_set = module.SeqDataset(
+        test_data, dictionary, rand_rate=RAND_RATE, window=WINDOW)
 
     collate_fn = module.Collator(noise_model, device_cpu, rand_mode=RAND_MODE)
-    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True, pin_memory=False, collate_fn=collate_fn, num_workers=4, drop_last=True)
-    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False, pin_memory=False, collate_fn=collate_fn, num_workers=4, drop_last=True)
+    train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True,
+                              pin_memory=False, collate_fn=collate_fn, num_workers=4, drop_last=True)
+    test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False,
+                             pin_memory=False, collate_fn=collate_fn, num_workers=4, drop_last=True)
 
     print('Init model')
     criterion = nn.CrossEntropyLoss()
     # if update model, load the pretrained file
     pretrained_file = MODEL_NAME if RESUME else None
-    model, optimizer, scaler, epoch = transfomer.init_model(dictionary, device, pretrained_file=pretrained_file)
+    model, optimizer, scaler, epoch = transfomer.init_model(
+        dictionary, device, pretrained_file=pretrained_file)
 
     print('Train and evaluate')
     for e in range(1, N_EPOCHS + 1):
         t0 = time.time()
 
-        train_loss, train_acc = module.train(model, train_loader, optimizer, criterion, device, scaler)
-        valid_loss, valid_acc = module.evaluate(model, test_loader, criterion, device)
+        train_loss, train_acc = module.train(
+            model, train_loader, optimizer, criterion, device, scaler)
+        valid_loss, valid_acc = module.evaluate(
+            model, test_loader, criterion, device)
 
         duration = (time.time() - t0) / 60
 
