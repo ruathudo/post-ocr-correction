@@ -401,7 +401,7 @@ def initialize_weights(m):
         nn.init.xavier_uniform_(m.weight.data)
 
 
-def init_model(dictionary, device, pretrained_file=None):
+def init_model(dictionary, device, pretrained_file=None, mp=False):
 
     INPUT_DIM = len(dictionary)
     OUTPUT_DIM = len(dictionary)
@@ -436,12 +436,12 @@ def init_model(dictionary, device, pretrained_file=None):
 
     if pretrained_file:
         # model_path = os.path.join('models', pretrained_file)
-        model, optimizer, scaler, epoch = load_model(pretrained_file, model, device)
+        model, optimizer, scaler, epoch = load_model(pretrained_file, model, device, mp)
     else:
         # lr=0.0005
         model.apply(initialize_weights)
         optimizer = torch.optim.Adam(model.parameters())
-        scaler = GradScaler(enabled=False)
+        scaler = GradScaler(enabled=mp)
         epoch = 0
 
     return model, optimizer, scaler, epoch

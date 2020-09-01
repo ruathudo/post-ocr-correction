@@ -8,12 +8,14 @@ import boto3
 
 
 def get_correction(output, target):
-    # output[output==2] = 0
-    # target[target==2] = 0
+    out = output.clone()
+    trg = target.clone()
+    out[out == 2] = 0
+    trg[trg == 2] = 0
 
     # print(target.shape)
     # print(output.shape)
-    diff = torch.sum((output != target), axis=1)
+    diff = torch.sum((out != trg), axis=1)
     acc = torch.sum(diff == 0)
 
     return acc.item()
@@ -58,7 +60,7 @@ def save_model(model, optimizer, scaler, model_name, epoch):
     }, filepath + '.pt')
 
 
-def load_model(model_name, model, device):
+def load_model(model_name, model, device, mp=False):
     filepath = os.path.join('models', model_name + '.pt')
     checkpoint = torch.load(filepath)
 
@@ -68,7 +70,7 @@ def load_model(model_name, model, device):
     optimizer = Adam(model.parameters())
     optimizer.load_state_dict(checkpoint['optimizer'])
 
-    scaler = GradScaler(enabled=False)
+    scaler = GradScaler(enabled=mp)
     scaler.load_state_dict(checkpoint['scaler'])
 
     epoch = checkpoint['epoch'] or 0

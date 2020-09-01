@@ -98,7 +98,7 @@ class Collator(object):
 
             noise_tokens = create_noise(non_errs, lens, self.noise_model, self.device)
 
-            df_src.loc[df_src['is_rand'] == False, 'tokens'] = noise_tokens
+            df_src.loc[df_src['is_rand'] == False, 'tokens'] = np.array(noise_tokens, dtype=object)
 
             src_tokens = df_src['tokens'].tolist()
             src_tokens = [torch.LongTensor(i[1:-1]) for i in src_tokens]
@@ -115,7 +115,7 @@ class Collator(object):
         return src, trg
 
 
-def train(model, data_loader, optimizer, criterion, device, scaler):
+def train(model, data_loader, optimizer, criterion, device, scaler, mp=False):
     clip = 1
     model.train()
     epoch_loss = 0
@@ -127,7 +127,8 @@ def train(model, data_loader, optimizer, criterion, device, scaler):
         src, trg = batch
         src = src.to(device, non_blocking=True)
         trg = trg.to(device, non_blocking=True)
-        with autocast(enabled=False):
+
+        with autocast(enabled=mp):
             output, _ = model(src, trg[:, :-1])
 
             y_pred = torch.argmax(output, 2)
@@ -148,6 +149,7 @@ def train(model, data_loader, optimizer, criterion, device, scaler):
             # trg = [(trg len - 1) * batch size]
             # output = [(trg len - 1) * batch size, output dim]
             loss = criterion(output, trg)
+            epoch_loss += loss.item()
 
         scaler.scale(loss).backward()
         # loss.backward()
@@ -157,15 +159,13 @@ def train(model, data_loader, optimizer, criterion, device, scaler):
         # optimizer.step()
         scaler.update()
 
-        epoch_loss += loss.item()
-
     epoch_loss = epoch_loss / len(data_loader)
     acc = total_correct / total_sample
 
     return epoch_loss, acc
 
 
-def evaluate(model, data_loader, criterion, device):
+def evaluate(model, data_loader, criterion, device, mp):
 
     model.eval()
 
@@ -181,7 +181,7 @@ def evaluate(model, data_loader, criterion, device):
             src = src.to(device, non_blocking=True)
             trg = trg.to(device, non_blocking=True)
 
-            with autocast(enabled=False):
+            with autocast(enabled=mp):
                 output, _ = model(src, trg[:, :-1])
 
                 y_pred = torch.argmax(output, 2)
@@ -205,8 +205,7 @@ def evaluate(model, data_loader, criterion, device):
                 # output = [(trg len - 1) * batch size, output dim]
 
                 loss = criterion(output, trg)
-
-            epoch_loss += loss.item()
+                epoch_loss += loss.item()
 
     epoch_loss = epoch_loss / len(data_loader)
     acc = total_correct / total_sample

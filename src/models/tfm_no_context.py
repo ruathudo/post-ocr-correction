@@ -11,12 +11,10 @@ from tqdm import tqdm
 
 from ..utils import create_noise, random_noise, get_correction
 
-scaler = GradScaler()
-
 
 class SeqDataset(Dataset):
 
-    def __init__(self, text, dictionary, rand_rate=0.5):
+    def __init__(self, text, dictionary, rand_rate=0.5, window=1):
         self.text = text
         self.dictionary = dictionary
         self.rand_rate = rand_rate
@@ -68,7 +66,7 @@ class Collator(object):
     def __call__(self, batch):
         src, trg, rands = zip(*batch)
 
-        if self.rand_mode == "mix":
+        if self.rand_mode == 'mix' or self.rand_mode == 'trained':
             df_src = pd.DataFrame(list(zip(src, rands)), columns=["tokens", "is_rand"])
             non_errs = df_src.loc[df_src['is_rand'] == False]['tokens'].tolist()
 
@@ -77,15 +75,9 @@ class Collator(object):
             non_errs = pad_sequence(non_errs)
             noise_tokens = create_noise(non_errs, lens, self.noise_model, self.device)
 
-            df_src.loc[df_src['is_rand'] == False, 'tokens'] = noise_tokens
+            df_src.loc[df_src['is_rand'] == False, 'tokens'] = np.array(noise_tokens, dtype=object)
 
             src = df_src['tokens'].tolist()
-            src = [torch.LongTensor(i) for i in src]
-        # if all src is no rand errors
-        elif self.rand_mode == "trained":
-            lens = torch.tensor([t.shape[0] for t in src])
-            non_errs = pad_sequence(src)
-            noise_tokens = create_noise(non_errs, lens, self.noise_model, self.device)
             src = [torch.LongTensor(i) for i in src]
 
         # pad
@@ -95,7 +87,7 @@ class Collator(object):
         return src, trg
 
 
-def train(model, data_loader, optimizer, criterion, device):
+def train(model, data_loader, optimizer, criterion, device, scaler, mp=False):
     clip = 1
     model.train()
     epoch_loss = 0
@@ -107,7 +99,8 @@ def train(model, data_loader, optimizer, criterion, device):
         src, trg = batch
         src = src.to(device, non_blocking=True)
         trg = trg.to(device, non_blocking=True)
-        with autocast():
+
+        with autocast(enabled=mp):
             output, _ = model(src, trg[:, :-1])
 
             y_pred = torch.argmax(output, 2)
@@ -144,7 +137,7 @@ def train(model, data_loader, optimizer, criterion, device):
     return epoch_loss, acc
 
 
-def evaluate(model, data_loader, criterion, device):
+def evaluate(model, data_loader, criterion, device, mp=False):
 
     model.eval()
 
@@ -161,7 +154,7 @@ def evaluate(model, data_loader, criterion, device):
             src = src.to(device, non_blocking=True)
             trg = trg.to(device, non_blocking=True)
 
-            with autocast():
+            with autocast(enabled=mp):
                 output, _ = model(src, trg[:, :-1])
 
                 y_pred = torch.argmax(output, 2)
