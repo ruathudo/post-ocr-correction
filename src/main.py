@@ -68,9 +68,9 @@ if __name__ == '__main__':
 
     collate_fn = module.Collator(noise_model, device_cpu, rand_mode=RAND_MODE)
     train_loader = DataLoader(train_set, batch_size=BATCH_SIZE, shuffle=True,
-                              pin_memory=True, collate_fn=collate_fn, num_workers=7, drop_last=True)
+                              pin_memory=True, collate_fn=collate_fn, num_workers=4, drop_last=True)
     test_loader = DataLoader(test_set, batch_size=BATCH_SIZE, shuffle=False,
-                             pin_memory=True, collate_fn=collate_fn, num_workers=7, drop_last=True)
+                             pin_memory=True, collate_fn=collate_fn, num_workers=4, drop_last=True)
 
     print('Init model')
     criterion = nn.CrossEntropyLoss()

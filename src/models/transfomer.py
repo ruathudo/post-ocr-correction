@@ -414,6 +414,7 @@ def init_model(dictionary, device, pretrained_file=None, mp=False):
     DEC_PF_DIM = 512
     ENC_DROPOUT = 0.1
     DEC_DROPOUT = 0.1
+    LEARNING_RATE = 0.0005
 
     enc = Encoder(INPUT_DIM,
                   HID_DIM,
@@ -440,7 +441,7 @@ def init_model(dictionary, device, pretrained_file=None, mp=False):
     else:
         # lr=0.0005
         model.apply(initialize_weights)
-        optimizer = torch.optim.Adam(model.parameters())
+        optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
         scaler = GradScaler(enabled=mp)
         epoch = 0
 

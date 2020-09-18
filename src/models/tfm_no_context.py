@@ -103,12 +103,11 @@ def train(model, data_loader, optimizer, criterion, device, scaler, mp=False):
         with autocast(enabled=mp):
             output, _ = model(src, trg[:, :-1])
 
-            y_pred = torch.argmax(output, 2)
-            # y_pred = y_pred.cpu().numpy()
+            # y_pred = torch.argmax(output, 2)
             y_true = trg[:, 1:]
 
             total_sample += y_true.shape[0]
-            total_correct += get_correction(y_pred, y_true)
+            # total_correct += get_correction(y_pred, y_true)
 
             # trg = [trg len, batch size]
             # output = [trg len, batch size, output dim]
@@ -121,6 +120,15 @@ def train(model, data_loader, optimizer, criterion, device, scaler, mp=False):
             # trg = [(trg len - 1) * batch size]
             # output = [(trg len - 1) * batch size, output dim]
             loss = criterion(output, trg)
+            # if torch.isnan(loss):
+            #     torch.save({'output': output, 'tgt': trg, 'src': src}, 'logs/nan.pt')
+            #     torch.save({
+            #         'scaler': scaler.state_dict(),
+            #         'model': model.state_dict(),
+            #         'optimizer': optimizer.state_dict(),
+            #     }, 'models/nan_model.pt')
+
+            #     raise Exception('NaN Loss')
             epoch_loss += loss.item()
 
         scaler.scale(loss).backward()
@@ -157,12 +165,12 @@ def evaluate(model, data_loader, criterion, device, mp=False):
             with autocast(enabled=mp):
                 output, _ = model(src, trg[:, :-1])
 
-                y_pred = torch.argmax(output, 2)
+                # y_pred = torch.argmax(output, 2)
                 # y_pred = y_pred.cpu().numpy()
                 y_true = trg[:, 1:]
 
                 total_sample += y_true.shape[0]
-                total_correct += get_correction(y_pred, y_true)
+                # total_correct += get_correction(y_pred, y_true)
 
                 # output = model(src, src_len, trg, 0) #turn off teacher forcing
 
