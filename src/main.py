@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 from multiprocessing import cpu_count
 import tqdm
 
-from .models import transfomer, error_gen
+from .models import transformer, error_gen
 # from .models.tfm_no_context import SeqDataset, Collator, train, evaluate
 from .models import tfm_context as ctx
 from .models import tfm_no_context as nctx
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     criterion = nn.CrossEntropyLoss()
     # if update model, load the pretrained file
     pretrained_file = MODEL_NAME if RESUME else None
-    model, optimizer, scaler, epoch = transfomer.init_model(dictionary, device, pretrained_file, MP)
+    model, optimizer, scaler, epoch = transformer.init_model(dictionary, device, pretrained_file, MP)
 
     print('Train and evaluate')
     for e in range(1, N_EPOCHS + 1):

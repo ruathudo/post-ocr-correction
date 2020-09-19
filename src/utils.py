@@ -15,7 +15,7 @@ def get_correction(output, target):
 
     # print(target.shape)
     # print(output.shape)
-    diff = torch.sum((out != trg), axis=1)
+    diff = torch.sum((out != trg), axis=0)
     acc = torch.sum(diff == 0)
 
     return acc.item()

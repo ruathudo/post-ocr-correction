@@ -81,8 +81,8 @@ class Collator(object):
             src = [torch.LongTensor(i) for i in src]
 
         # pad
-        src = pad_sequence(src).permute(1, 0)
-        trg = pad_sequence(trg).permute(1, 0)
+        src = pad_sequence(src)
+        trg = pad_sequence(trg)
 
         return src, trg
 
@@ -96,39 +96,26 @@ def train(model, data_loader, optimizer, criterion, device, scaler, mp=False):
 
     for i, batch in tqdm(enumerate(data_loader), total=len(data_loader), desc='Train'):
         optimizer.zero_grad()
-        src, trg = batch
+        src, tgt = batch
         src = src.to(device, non_blocking=True)
-        trg = trg.to(device, non_blocking=True)
+        tgt = tgt.to(device, non_blocking=True)
 
         with autocast(enabled=mp):
-            output, _ = model(src, trg[:, :-1])
+            output = model(src, tgt[:-1, :])
 
-            # y_pred = torch.argmax(output, 2)
-            y_true = trg[:, 1:]
+            y_pred = torch.argmax(output, 2)
+            # y_pred = y_pred.cpu().numpy()
+            y_true = tgt[1:, :]
 
-            total_sample += y_true.shape[0]
-            # total_correct += get_correction(y_pred, y_true)
-
-            # trg = [trg len, batch size]
-            # output = [trg len, batch size, output dim]
+            total_sample += tgt.shape[1]
+            total_correct += get_correction(y_pred, y_true)
 
             output_dim = output.shape[-1]
 
             output = output.contiguous().view(-1, output_dim)
-            trg = trg[:, 1:].contiguous().view(-1)
+            tgt = tgt[1:, :].contiguous().view(-1)
 
-            # trg = [(trg len - 1) * batch size]
-            # output = [(trg len - 1) * batch size, output dim]
-            loss = criterion(output, trg)
-            # if torch.isnan(loss):
-            #     torch.save({'output': output, 'tgt': trg, 'src': src}, 'logs/nan.pt')
-            #     torch.save({
-            #         'scaler': scaler.state_dict(),
-            #         'model': model.state_dict(),
-            #         'optimizer': optimizer.state_dict(),
-            #     }, 'models/nan_model.pt')
-
-            #     raise Exception('NaN Loss')
+            loss = criterion(output, tgt)
             epoch_loss += loss.item()
 
         scaler.scale(loss).backward()
@@ -156,36 +143,26 @@ def evaluate(model, data_loader, criterion, device, mp=False):
     with torch.no_grad():
 
         for batch in data_loader:
-            src, trg = batch
-            # src, trg = process_input(deepcopy(l_ctx), deepcopy(trg), deepcopy(r_ctx), noise_model)
-
+            src, tgt = batch
             src = src.to(device, non_blocking=True)
-            trg = trg.to(device, non_blocking=True)
+            tgt = tgt.to(device, non_blocking=True)
 
             with autocast(enabled=mp):
-                output, _ = model(src, trg[:, :-1])
+                output = model(src, tgt[:-1, :])
 
-                # y_pred = torch.argmax(output, 2)
+                y_pred = torch.argmax(output, 2)
                 # y_pred = y_pred.cpu().numpy()
-                y_true = trg[:, 1:]
+                y_true = tgt[1:, :]
 
-                total_sample += y_true.shape[0]
-                # total_correct += get_correction(y_pred, y_true)
-
-                # output = model(src, src_len, trg, 0) #turn off teacher forcing
-
-                # trg = [trg len, batch size]
-                # output = [trg len, batch size, output dim]
+                total_sample += tgt.shape[1]
+                total_correct += get_correction(y_pred, y_true)
 
                 output_dim = output.shape[-1]
 
                 output = output.contiguous().view(-1, output_dim)
-                trg = trg[:, 1:].contiguous().view(-1)
+                tgt = tgt[1:, :].contiguous().view(-1)
 
-                # trg = [(trg len - 1) * batch size]
-                # output = [(trg len - 1) * batch size, output dim]
-
-                loss = criterion(output, trg)
+                loss = criterion(output, tgt)
                 epoch_loss += loss.item()
 
     epoch_loss = epoch_loss / len(data_loader)
