@@ -144,7 +144,13 @@ def train(model, data_loader, optimizer, criterion, device, scaler, mp=False):
             tgt = tgt[1:, :].contiguous().view(-1)
 
             loss = criterion(output, tgt)
-            epoch_loss += loss.item()
+
+        # if torch.isnan(loss):
+        #     scale = scaler.get_scale()
+        #     # print('Scale', scaler.get_scale())
+        #     print('Nan loss', scale)
+        #     raise Exception("Nan loss")
+        epoch_loss += loss.item()
 
         scaler.scale(loss).backward()
         # loss.backward()

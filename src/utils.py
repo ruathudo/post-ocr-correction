@@ -8,8 +8,8 @@ import boto3
 
 
 def get_correction(output, target):
-    out = output.clone()
-    trg = target.clone()
+    out = output.detach().clone()
+    trg = target.detach().clone()
     out[out == 2] = 0
     trg[trg == 2] = 0
 
@@ -72,6 +72,10 @@ def load_model(model_name, model, device, mp=False):
 
     scaler = GradScaler(enabled=mp)
     scaler.load_state_dict(checkpoint['scaler'])
+    # scaler.set_growth_interval(500)
+    # scaler.set_growth_factor(1)
+    # scaler.set_backoff_factor(1)
+    # print('Scale', scaler.get_scale())
 
     epoch = checkpoint['epoch'] or 0
     return model, optimizer, scaler, epoch
